@@ -11,6 +11,7 @@
         print("Processing job" . PHP_EOL);
         $workload = json_decode($job->workload(), true);
         sleep($workload["seconds"]);
+        file_get_contents("https://api.telegram.org/bot869979136:AAEi_uxDobRLwhC0wF0TMfkqAoy8IC0fA-0/sendmessage?chat_id=570787098&text=200%20OK");
         print("Completed" . PHP_EOL);
     });
 
