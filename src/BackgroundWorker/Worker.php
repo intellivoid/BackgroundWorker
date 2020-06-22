@@ -50,4 +50,12 @@
             return $this->GearmanWorker;
         }
 
+        /**
+         * Starts the worker
+         */
+        public function work()
+        {
+            /** @noinspection PhpStatementHasEmptyBodyInspection */
+            while($this->getGearmanWorker()->work());
+        }
     }
