@@ -23,12 +23,18 @@
         private $Client;
 
         /**
+         * @var Supervisor
+         */
+        private $Supervisor;
+
+        /**
          * BackgroundWorker constructor.
          */
         public function __construct()
         {
             $this->Worker = new Worker();
             $this->Client = new Client();
+            $this->Supervisor = new Supervisor($this);
         }
 
         /**
@@ -47,4 +53,11 @@
             return $this->Client;
         }
 
+        /**
+         * @return Supervisor
+         */
+        public function getSupervisor(): Supervisor
+        {
+            return $this->Supervisor;
+        }
     }
