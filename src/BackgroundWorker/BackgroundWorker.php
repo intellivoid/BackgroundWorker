@@ -3,9 +3,12 @@
 
     namespace BackgroundWorker;
 
-    include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Client.php');
-    include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Supervisor.php');
-    include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Worker.php');
+    if(defined("PPM") == false)
+    {
+        include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Client.php');
+        include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Supervisor.php');
+        include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Worker.php');
+    }
 
     /**
      * Class BackgroundWorker

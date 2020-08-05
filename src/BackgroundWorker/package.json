@@ -1,0 +1,39 @@
+{
+    "package": {
+        "package_name": "net.intellivoid.background_worker",
+        "name": "BackgroundWorker",
+        "version": "1.0.0.0",
+        "author": "Zi Xing Narrakas",
+        "organization": "Intellivoid",
+        "description": "Extends tasks to sub-processing to power-process large tasks in the background or in parallel",
+        "url": "https://github.com/intellivoid/BackgroundWorker",
+        "dependencies": [],
+        "configuration": {
+            "autoload_method": "indexed",
+            "main": null,
+            "post_installation": [],
+            "pre_installation": []
+        }
+    },
+    "components": [
+        {
+            "required": true,
+            "file": "BackgroundWorker.php"
+        },
+        {
+            "required": true,
+            "file": "Client.php"
+        },
+        {
+            "required": true,
+            "file": "Supervisor.php"
+        },
+        {
+            "required": true,
+            "file": "Worker.php"
+        }
+    ],
+    "files": [
+        "background_worker.json"
+    ]
+}
