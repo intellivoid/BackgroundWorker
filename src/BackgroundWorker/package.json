@@ -2,12 +2,19 @@
     "package": {
         "package_name": "net.intellivoid.background_worker",
         "name": "BackgroundWorker",
-        "version": "1.0.0.0",
+        "version": "1.0.0.1",
         "author": "Zi Xing Narrakas",
         "organization": "Intellivoid",
         "description": "Extends tasks to sub-processing to power-process large tasks in the background or in parallel",
         "url": "https://github.com/intellivoid/BackgroundWorker",
-        "dependencies": [],
+        "dependencies": [
+            {
+                "package": "net.intellivoid.verbose_adventure",
+                "version": "latest",
+                "required": true,
+                "source": "default@github/intellivoid/VerboseAdventure"
+            }
+        ],
         "configuration": {
             "autoload_method": "generated_spl",
             "main": null,

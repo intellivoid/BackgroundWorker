@@ -3,6 +3,8 @@
 
     namespace BackgroundWorker;
 
+    use VerboseAdventure\Abstracts\EventType;
+
     /**
      * Class Supervisor
      * @package BackgroundWorker
@@ -37,13 +39,14 @@
          */
         public function startWorkers(string $path, string $name, int $instances=5)
         {
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Starting $instances instance(s)", get_class($this));
             self::$workerInstances = [];
             $current_time = (int)time();
             for ($i = 0; $i < $instances; $i++)
             {
                 $instance_id = hash('crc32', $current_time . $i);
                 exec("php " . escapeshellarg($path) . " --worker-instance=" . escapeshellarg($instance_id) . " --worker-name=" . escapeshellarg($name) . " > /dev/null 2>/dev/null &");
-                print("Executed worker " . $instance_id . PHP_EOL);
+                $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Executed worker " . $instance_id, get_class($this));
                 self::$workerInstances = $instance_id;
             }
         }
@@ -55,9 +58,9 @@
          */
         public function stopWorkers(string $name)
         {
-            print("Killing all workers by $name" . PHP_EOL);
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Killing all workers by $name", get_class($this));
             exec("pkill -f " . escapeshellarg("worker-name=" . $name));
-            print("Operation successful" . PHP_EOL);
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Operation successful", get_class($this));
         }
 
         /**
@@ -69,6 +72,7 @@
          */
         public function restartWorkers(string $path, string $name, int $instances=5)
         {
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Restarting workers", get_class($this));
             $this->stopWorkers($name);
             $this->startWorkers($path, $name, $instances);
         }

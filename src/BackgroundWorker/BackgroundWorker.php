@@ -3,12 +3,18 @@
 
     namespace BackgroundWorker;
 
+    use VerboseAdventure\Abstracts\EventType;
+    use VerboseAdventure\Classes\ErrorHandler;
+    use VerboseAdventure\VerboseAdventure;
+
     if(defined("PPM") == false)
     {
         include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Client.php');
         include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Supervisor.php');
         include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Worker.php');
     }
+
+    ErrorHandler::registerHandlers();
 
     /**
      * Class BackgroundWorker
@@ -32,6 +38,11 @@
         private $Supervisor;
 
         /**
+         * @var VerboseAdventure
+         */
+        private VerboseAdventure $LogHandler;
+
+        /**
          * BackgroundWorker constructor.
          */
         public function __construct()
@@ -39,6 +50,9 @@
             $this->Worker = new Worker();
             $this->Client = new Client();
             $this->Supervisor = new Supervisor($this);
+            $this->LogHandler = new VerboseAdventure("BackgroundWorker");
+
+            $this->LogHandler->log(EventType::INFO, "Initialized");
         }
 
         /**
@@ -63,5 +77,13 @@
         public function getSupervisor(): Supervisor
         {
             return $this->Supervisor;
+        }
+
+        /**
+         * @return VerboseAdventure
+         */
+        public function getLogHandler(): VerboseAdventure
+        {
+            return $this->LogHandler;
         }
     }
