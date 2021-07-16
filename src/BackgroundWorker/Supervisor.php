@@ -9,6 +9,7 @@
     use BackgroundWorker\Exceptions\WorkersAlreadyRunningException;
     use BackgroundWorker\Objects\WorkerInstance;
     use ProcLib\Abstracts\Types\StatusType;
+    use ProcLib\Abstracts\Types\StdType;
     use ProcLib\Process;
     use ProcLib\Utilities\PhpExecutableFinder;
     use VerboseAdventure\Abstracts\EventType;
@@ -115,25 +116,24 @@
 
             for ($i = 0; $i < $instances; $i++)
             {
-                $workerInstance = new WorkerInstance();
-                $workerInstance->Name = $name;
-                $workerInstance->Path = $path;
-                $workerInstance->InstanceID = hash('crc32', $current_time . $i);
-                $workerInstance->DisplayOutput = $this->displayOutput;
-                $workerInstance->Process = new Process([
+                $instance = new WorkerInstance();
+                $instance->Name = $name;
+                $instance->Path = $path;
+                $instance->InstanceID = hash('crc32', $current_time . $i);
+                $instance->DisplayOutput = $this->displayOutput;
+                $instance->Process = new Process([
                     $phpBinLocation, $path,
-                    "--worker-instance=" . escapeshellarg($workerInstance->InstanceID),
-                    "--worker-name=" . escapeshellarg($workerInstance->Name)]
+                    "--worker-instance=" . escapeshellarg($instance->InstanceID),
+                    "--worker-name=" . escapeshellarg($instance->Name)]
                 );
 
-                $workerInstance->Process->start();
+                $this->startProcess($instance);
                 $this->backgroundWorker->getLogHandler()->log(
-                    EventType::INFO, "Executed worker " . $workerInstance->InstanceID . ", process ID " . $workerInstance->Process->getPid(),
+                    EventType::INFO, "Executed worker " . $instance->InstanceID . ", process ID " . $instance->Process->getPid(),
                     get_class($this)
                 );
 
-                $this->checkStartup($workerInstance);
-                self::$workerInstances[$name][] = $workerInstance;
+                self::$workerInstances[$name][] = $instance;
             }
         }
 
@@ -220,11 +220,43 @@
                 }
 
                 $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Restarting instance " . $instance->InstanceID, get_class($this));
-                $instance->Process->start();
-                $this->checkStartup($instance);
+                $this->startProcess($instance);
             }
 
             $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Operation successful", get_class($this));
+        }
+
+        /**
+         * Starts the worker process
+         *
+         * @param WorkerInstance $instance
+         * @throws UnexpectedTermination
+         */
+        private function startProcess(WorkerInstance &$instance)
+        {
+            $log_handler = $this->backgroundWorker->getLogHandler();
+
+            $instance->Process->start(function ($type, $buffer) use ($instance, $log_handler) {
+                if($instance->DisplayOutput == false)
+                    return;
+
+                $buffer_clean =  trim($buffer, " \n\r\t\v\0");
+
+                switch(strtolower($type))
+                {
+                    case "out":
+                    case StdType::STDOUT:
+                        $log_handler->log(EventType::INFO, $buffer_clean, "instance-" . $instance->InstanceID);
+                        break;
+
+                    case "err":
+                    case StdType::STDERR:
+                        $log_handler->log(EventType::ERROR, $buffer_clean, "instance-" . $instance->InstanceID);
+                        break;
+                }
+            });
+
+            $this->checkStartup($instance);
         }
 
         /**
@@ -261,8 +293,7 @@
 
                     $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " has terminated unexpectedly, restarting.", get_class($this));
                     $instance->FailCount += 1;
-                    $instance->Process->start();
-                    $this->checkStartup($instance);
+                    $this->startProcess($instance);
                 };
             }
         }

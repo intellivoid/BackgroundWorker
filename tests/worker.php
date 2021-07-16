@@ -15,4 +15,5 @@
         print("Completed" . PHP_EOL);
     });
 
+    print("Worker started " . PHP_EOL);
     $BackgroundWorker->getWorker()->work();
