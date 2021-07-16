@@ -11,8 +11,14 @@
             {
                 "package": "net.intellivoid.verbose_adventure",
                 "version": "latest",
-                "required": true,
-                "source": "default@github/intellivoid/VerboseAdventure"
+                "source": "default@github/intellivoid/VerboseAdventure",
+                "required": true
+            },
+            {
+                "package": "net.intellivoid.proclib",
+                "version": "latest",
+                "source": "default@github/intellivoid/ProcLib",
+                "required": true
             }
         ],
         "configuration": {
@@ -29,18 +35,39 @@
         },
         {
             "required": true,
-            "file": "Client.php"
-        },
-        {
-            "required": true,
             "file": "Supervisor.php"
         },
         {
             "required": true,
+            "file": "Client.php"
+        },
+        {
+            "required": true,
+            "file": "Exceptions/WorkersAlreadyRunningException.php"
+        },
+        {
+            "required": true,
+            "file": "Exceptions/UnexpectedTermination.php"
+        },
+        {
+            "required": true,
+            "file": "Exceptions/WorkerException.php"
+        },
+        {
+            "required": true,
+            "file": "Exceptions/NoWorkersRunningException.php"
+        },
+        {
+            "required": true,
             "file": "Worker.php"
+        },
+        {
+            "required": true,
+            "file": "Objects/WorkerInstance.php"
         }
     ],
     "files": [
+        "package.json",
         "background_worker.json"
     ]
 }

@@ -7,15 +7,6 @@
     use VerboseAdventure\Classes\ErrorHandler;
     use VerboseAdventure\VerboseAdventure;
 
-    if(defined("PPM") == false)
-    {
-        include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Client.php');
-        include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Supervisor.php');
-        include_once(__DIR__ . DIRECTORY_SEPARATOR . 'Worker.php');
-    }
-
-    ErrorHandler::registerHandlers();
-
     /**
      * Class BackgroundWorker
      * @package BackgroundWorker
@@ -53,6 +44,7 @@
             $this->LogHandler = new VerboseAdventure("BackgroundWorker");
 
             $this->LogHandler->log(EventType::INFO, "Initialized");
+            ErrorHandler::registerHandlers();
         }
 
         /**
