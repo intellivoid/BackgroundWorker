@@ -19,6 +19,12 @@
                 "version": "latest",
                 "source": "default@github/intellivoid/ProcLib",
                 "required": true
+            },
+            {
+                "package": "net.intellivoid.timerlib",
+                "version": "latest",
+                "source": "default@github/intellivoid/TimerLib",
+                "required": true
             }
         ],
         "configuration": {
@@ -29,6 +35,10 @@
         }
     },
     "components": [
+        {
+            "required": true,
+            "file": "Abstracts/WorkerMonitorCommands.php"
+        },
         {
             "required": true,
             "file": "BackgroundWorker.php"
@@ -59,7 +69,15 @@
         },
         {
             "required": true,
+            "file": "Utilities/Converter.php"
+        },
+        {
+            "required": true,
             "file": "Worker.php"
+        },
+        {
+            "required": true,
+            "file": "Objects/WorkerStatisticsResults.php"
         },
         {
             "required": true,

@@ -4,6 +4,8 @@
     namespace BackgroundWorker;
 
 
+    use BackgroundWorker\Objects\WorkerInstance;
+    use BackgroundWorker\Objects\WorkerStatisticsResults;
     use GearmanClient;
 
     /**

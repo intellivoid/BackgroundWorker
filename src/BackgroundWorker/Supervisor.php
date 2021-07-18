@@ -4,14 +4,22 @@
 
     namespace BackgroundWorker;
 
+    use BackgroundWorker\Abstracts\WorkerMonitorCommands;
     use BackgroundWorker\Exceptions\NoWorkersRunningException;
     use BackgroundWorker\Exceptions\UnexpectedTermination;
+    use BackgroundWorker\Exceptions\WorkerException;
     use BackgroundWorker\Exceptions\WorkersAlreadyRunningException;
     use BackgroundWorker\Objects\WorkerInstance;
+    use BackgroundWorker\Objects\WorkerStatisticsResults;
+    use BackgroundWorker\Utilities\Converter;
+    use GearmanException;
     use ProcLib\Abstracts\Types\StatusType;
     use ProcLib\Abstracts\Types\StdType;
     use ProcLib\Process;
     use ProcLib\Utilities\PhpExecutableFinder;
+    use TimerLib\Exceptions\DurationNotAvailableException;
+    use TimerLib\Objects\Duration;
+    use TimerLib\Timer;
     use VerboseAdventure\Abstracts\EventType;
 
     /**
@@ -31,6 +39,16 @@
         private static $workerInstances;
 
         /**
+         * @var array
+         */
+        private $monitoringTimestamps;
+
+        /**
+         * @var array
+         */
+        private $resourceWarningTimestamps;
+
+        /**
          * @var bool
          */
         private $displayOutput = false;
@@ -48,6 +66,15 @@
         {
             $this->backgroundWorker = $backgroundWorker;
             self::$workerInstances = [];
+        }
+
+        /**
+         * @param string $host
+         * @param int $port
+         */
+        public function addServer(string $host="127.0.0.1", int $port=4730)
+        {
+            $this->backgroundWorker->getClient()->addServer($host, $port);
         }
 
         /**
@@ -121,11 +148,14 @@
                 $instance->Path = $path;
                 $instance->InstanceID = hash('crc32', $current_time . $i);
                 $instance->DisplayOutput = $this->displayOutput;
+                $instance->MonitoringFunctionName = Converter::calculateWorkerInternalId($name, $instance->InstanceID);
                 $instance->Process = new Process([
                     $phpBinLocation, $path,
-                    "--worker-instance=" . escapeshellarg($instance->InstanceID),
-                    "--worker-name=" . escapeshellarg($instance->Name)]
+                    "--worker-instance=" . $instance->InstanceID,
+                    "--worker-name=" . $instance->Name]
                 );
+                $instance->PingTimer = new Timer();
+                $instance->PingTimer->setMaxTimeLogs(100);
 
                 $this->startProcess($instance);
                 $this->backgroundWorker->getLogHandler()->log(
@@ -236,6 +266,7 @@
         {
             $log_handler = $this->backgroundWorker->getLogHandler();
 
+            $instance->StartTimestamp = time();
             $instance->Process->start(function ($type, $buffer) use ($instance, $log_handler) {
                 if($instance->DisplayOutput == false)
                     return;
@@ -273,9 +304,18 @@
                 throw new NoWorkersRunningException("No workers are running for '$name'");
             }
 
+            if(isset($this->monitoringTimestamps[$name]) == false)
+                $this->monitoringTimestamps[$name] = time();
+
+            if(isset($this->resourceWarningTimestamps[$name]) == false)
+                $this->resourceWarningTimestamps[$name] = 0;
+
+            $workerStatisticsResults = [];
+
             /** @var WorkerInstance $instance */
             foreach(self::$workerInstances[$name] as $instance)
             {
+                // Check the running state of the worker
                 if($instance->Process->isRunning() == false)
                 {
                     if($instance->FailCount >= 5 && $this->stabilityCheck)
@@ -294,7 +334,148 @@
                     $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " has terminated unexpectedly, restarting.", get_class($this));
                     $instance->FailCount += 1;
                     $this->startProcess($instance);
-                };
+                }
+
+                /**
+                // Start running statistics after 10 seconds
+                if((time() - $instance->StartTimestamp) > 10)
+                {
+                    // Check the running state of the worker client
+                    $workerStatistics = new WorkerStatisticsResults($instance);
+
+                    try
+                    {
+                        $instance->PingTimer->start();
+                        if((bool)@$this->backgroundWorker->getClient()->getGearmanClient()->doHigh($instance->MonitoringFunctionName, WorkerMonitorCommands::PING) == false)
+                        {
+                            $instance->PingTimer->stop();
+                            continue;
+                            //throw new WorkerException("The worker returned an unexpected response to the ping command");
+                        }
+                        else
+                        {
+                            $instance->PingTimer->stop();
+                            $workerStatistics->PingResponseDuration = $instance->PingTimer->getDuration();
+
+                            try
+                            {
+                                $workerStatistics->PingAvgResponseDuration = $instance->PingTimer->getAverageDuration();
+                            }
+                            catch(DurationNotAvailableException)
+                            {
+                                $workerStatistics->PingAvgResponseDuration = $instance->PingTimer->getDuration();
+                            }
+
+                            $workerStatistics->MemoryUsage = $this->backgroundWorker->getClient()->getGearmanClient()->doNormal(
+                                $instance->MonitoringFunctionName, WorkerMonitorCommands::GET_MEMORY_USAGE);
+
+                            $workerStatistics->RealMemoryUsage = $this->backgroundWorker->getClient()->getGearmanClient()->doNormal(
+                                $instance->MonitoringFunctionName, WorkerMonitorCommands::GET_REAL_MEMORY_USAGE);
+
+                            $workerStatistics->Uptime = $this->backgroundWorker->getClient()->getGearmanClient()->doNormal(
+                                $instance->MonitoringFunctionName, WorkerMonitorCommands::GET_UPTIME);
+
+                            $workerStatisticsResults[] = $workerStatistics;
+                        }
+                    }
+                    catch(GearmanException | WorkerException $e)
+                    {
+                        //$this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " ping failed, " . $e->getMessage(), get_class($this));
+                        $instance->PingTimer->cancel();
+                    }
+                }
+                 **/
+            }
+            /**
+            // Start doing StabilityChecks
+            if(count($workerStatisticsResults) > 0)
+            {
+                $collectedData = [
+                    "ping_times" => [],
+                    "avg_ping_times" => [],
+                    "memory_usage" => [],
+                    "real_memory_usage" => []
+                ];
+
+                foreach($workerStatisticsResults as $workerStatisticsResult)
+                {
+                    $collectedData["ping_times"][] = $workerStatisticsResult->PingResponseDuration->getNanoseconds();
+                    $collectedData["avg_ping_times"][] = $workerStatisticsResult->PingAvgResponseDuration->getNanoseconds();
+                    $collectedData["memory_usage"][] = $workerStatisticsResult->MemoryUsage;
+                    $collectedData["real_memory_usage"][] = $workerStatisticsResult->RealMemoryUsage;
+                }
+
+                $Ping = Duration::fromNanoseconds(array_sum($collectedData["ping_times"]) / count($collectedData["ping_times"]));
+                $PingAvg = Duration::fromNanoseconds(array_sum($collectedData["avg_ping_times"]) / count($collectedData["avg_ping_times"]));
+                $MemoryAvg = array_sum($collectedData["memory_usage"]) / count($collectedData["memory_usage"]);
+                $MemoryTotal = array_sum($collectedData["memory_usage"]);
+                $RealMemoryAvg = array_sum($collectedData["real_memory_usage"]) / count($collectedData["real_memory_usage"]);
+                $RealMemoryTotal = array_sum($collectedData["real_memory_usage"]);
+
+                // Calculate busy workers
+                $collectedData["busy_workers"] = 0;
+                $collectedData["lazy_workers"] = 0;
+                foreach($collectedData["avg_ping_times"] as $ping_time)
+                {
+                    if(Duration::fromNanoseconds($ping_time)->getMilliseconds() > 100)
+                    {
+                        $collectedData["lazy_workers"] += 1;
+                    }
+                    else
+                    {
+                        $collectedData["busy_workers"] += 1;
+                    }
+                }
+
+                if($collectedData["busy_workers"] >  $collectedData["lazy_workers"] && (time() - $this->resourceWarningTimestamps[$name]) > 60)
+                {
+                    $percentage = (($collectedData["lazy_workers"] / ($collectedData["lazy_workers"] + $collectedData["busy_workers"])) * 100);
+                    $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "The Avg. response time from workers is " . $PingAvg->getMilliseconds() . "ms, $percentage% of available resources are being used, consider increasing worker count.", get_class($this));
+                    $this->resourceWarningTimestamps[$name] = time();
+                }
+
+                // Print out statistics report
+                if((time() - $this->monitoringTimestamps[$name]) > 60)
+                {
+                    $StatisticsReport =
+                        "Reports from %a worker(s) >> " .
+                        "Ping %bmsms | Avg Ping %cmsms | " .
+                        "Avg Mem. %dh, Total %dth | Avg Real Mem. %eh, Total %eth";
+
+                    $StatisticsReport = str_ireplace("%a", count($workerStatisticsResults), $StatisticsReport);
+
+                    $StatisticsReport = str_ireplace("%bms", $Ping->getMilliseconds(), $StatisticsReport);
+                    $StatisticsReport = str_ireplace("%cms", $PingAvg->getMilliseconds(), $StatisticsReport);
+
+                    $StatisticsReport = str_ireplace("%dh", Converter::readableBytes($MemoryAvg), $StatisticsReport);
+                    $StatisticsReport = str_ireplace("%db", $MemoryAvg, $StatisticsReport);
+                    $StatisticsReport = str_ireplace("%dth", Converter::readableBytes($MemoryTotal), $StatisticsReport);
+                    $StatisticsReport = str_ireplace("%dtb", $MemoryTotal, $StatisticsReport);
+
+                    $StatisticsReport = str_ireplace("%eh", Converter::readableBytes($RealMemoryAvg), $StatisticsReport);
+                    $StatisticsReport = str_ireplace("%eb", $RealMemoryAvg, $StatisticsReport);
+                    $StatisticsReport = str_ireplace("%eth", Converter::readableBytes($RealMemoryTotal), $StatisticsReport);
+                    $StatisticsReport = str_ireplace("%etb", $RealMemoryTotal, $StatisticsReport);
+
+                    $this->backgroundWorker->getLogHandler()->log(EventType::INFO, $StatisticsReport, get_class($this));
+                    $this->monitoringTimestamps[$name] = time();
+                }
+            }
+             **/
+        }
+
+
+        /**
+         * Monitors the instances and restarts them when necessary and preforms stability checks if enabled
+         *
+         * @param string $name
+         */
+        public function monitor_loop(string $name)
+        {
+            while(true)
+            {
+                $this->monitor($name);
+                usleep(500000);
             }
         }
 
