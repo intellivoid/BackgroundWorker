@@ -137,7 +137,7 @@
             $phpBinLocation = $phpExecutableFinder->find();
 
             // Begin spawning sub-processes
-            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Starting $instances instance(s)", get_class($this));
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Starting $instances instance(s)", 'Supervisor');
             self::$workerInstances[$name] = [];
             $current_time = (int)time();
 
@@ -160,7 +160,7 @@
                 $this->startProcess($instance);
                 $this->backgroundWorker->getLogHandler()->log(
                     EventType::INFO, "Executed worker " . $instance->InstanceID . ", process ID " . $instance->Process->getPid(),
-                    get_class($this)
+                    'Supervisor'
                 );
 
                 self::$workerInstances[$name][] = $instance;
@@ -187,7 +187,7 @@
                         $workerInstance->Process->getErrorOutput(),
                     );
 
-                    $this->backgroundWorker->getLogHandler()->logException($exception, $exception->getMessage(), get_class($this));
+                    $this->backgroundWorker->getLogHandler()->logException($exception, $exception->getMessage(), 'Supervisor');
                     throw $exception;
                 }
 
@@ -217,13 +217,13 @@
             {
                 if($instance->Process->isRunning())
                 {
-                    $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Killing instance " . $instance->InstanceID, get_class($this));
+                    $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Killing instance " . $instance->InstanceID, 'Supervisor');
                     $instance->Process->stop();
                 }
             }
 
             self::$workerInstances[$name] = [];
-            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Operation successful", get_class($this));
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Operation successful", 'Supervisor');
         }
 
         /**
@@ -245,15 +245,15 @@
             {
                 if($instance->Process->isRunning())
                 {
-                    $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Killing instance " . $instance->InstanceID, get_class($this));
+                    $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Killing instance " . $instance->InstanceID, 'Supervisor');
                     $instance->Process->stop();
                 }
 
-                $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Restarting instance " . $instance->InstanceID, get_class($this));
+                $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Restarting instance " . $instance->InstanceID, 'Supervisor');
                 $this->startProcess($instance);
             }
 
-            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Operation successful", get_class($this));
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Operation successful", 'Supervisor');
         }
 
         /**
@@ -336,11 +336,11 @@
                             $instance->Process->getErrorOutput(),
                         );
 
-                        $this->backgroundWorker->getLogHandler()->logException($exception, $exception->getMessage(), get_class($this));
+                        $this->backgroundWorker->getLogHandler()->logException($exception, $exception->getMessage(), 'Supervisor');
                         throw $exception;
                     }
 
-                    $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " has terminated unexpectedly, restarting.", get_class($this));
+                    $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " has terminated unexpectedly, restarting.", 'Supervisor');
                     $instance->FailCount += 1;
                     $this->startProcess($instance);
                 }
@@ -389,7 +389,7 @@
                     }
                     catch(GearmanException | WorkerException $e)
                     {
-                        //$this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " ping failed, " . $e->getMessage(), get_class($this));
+                        //$this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " ping failed, " . $e->getMessage(), 'Supervisor');
                         $instance->PingTimer->cancel();
                     }
                 }
@@ -439,7 +439,7 @@
                 if($collectedData["busy_workers"] >  $collectedData["lazy_workers"] && (time() - $this->resourceWarningTimestamps[$name]) > 60)
                 {
                     $percentage = (($collectedData["lazy_workers"] / ($collectedData["lazy_workers"] + $collectedData["busy_workers"])) * 100);
-                    $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "The Avg. response time from workers is " . $PingAvg->getMilliseconds() . "ms, $percentage% of available resources are being used, consider increasing worker count.", get_class($this));
+                    $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "The Avg. response time from workers is " . $PingAvg->getMilliseconds() . "ms, $percentage% of available resources are being used, consider increasing worker count.", 'Supervisor');
                     $this->resourceWarningTimestamps[$name] = time();
                 }
 
@@ -466,7 +466,7 @@
                     $StatisticsReport = str_ireplace("%eth", Converter::readableBytes($RealMemoryTotal), $StatisticsReport);
                     $StatisticsReport = str_ireplace("%etb", $RealMemoryTotal, $StatisticsReport);
 
-                    $this->backgroundWorker->getLogHandler()->log(EventType::INFO, $StatisticsReport, get_class($this));
+                    $this->backgroundWorker->getLogHandler()->log(EventType::INFO, $StatisticsReport, 'Supervisor');
                     $this->monitoringTimestamps[$name] = time();
                 }
             }
