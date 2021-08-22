@@ -271,20 +271,29 @@
                 if($instance->DisplayOutput == false)
                     return;
 
-                $buffer_clean =  trim($buffer, " \n\r\t\v\0");
 
-                switch(strtolower($type))
+                $buffer_split = implode("\n", explode("\r\n", $buffer));
+                $buffer_split = explode("\n", $buffer_split);
+
+                foreach($buffer_split as $item)
                 {
-                    case "out":
-                    case StdType::STDOUT:
-                        $log_handler->log(EventType::INFO, $buffer_clean, "instance-" . $instance->InstanceID);
-                        break;
+                    if(strlen($item) == 0)
+                        continue;
 
-                    case "err":
-                    case StdType::STDERR:
-                        $log_handler->log(EventType::ERROR, $buffer_clean, "instance-" . $instance->InstanceID);
-                        break;
+                    switch(strtolower($type))
+                    {
+                        case "out":
+                        case StdType::STDOUT:
+                            $log_handler->log(EventType::INFO, $item, "instance-" . $instance->InstanceID);
+                            break;
+
+                        case "err":
+                        case StdType::STDERR:
+                            $log_handler->log(EventType::ERROR, $item, "instance-" . $instance->InstanceID);
+                            break;
+                    }
                 }
+
             });
 
             $this->checkStartup($instance);
