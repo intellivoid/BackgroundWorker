@@ -192,13 +192,16 @@
                 {
                     @$this->getGearmanWorker()->work();
 
-                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT && $this->IgnoreConnectionError == false)
+                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT)
                     {
-                        exit(15);
-                    }
-                    else
-                    {
-                        sleep(10);
+                        if($this->IgnoreConnectionError == false)
+                        {
+                            sleep(10);
+                        }
+                        else
+                        {
+                            exit(15);
+                        }
                     }
                 }
             }
@@ -209,13 +212,16 @@
                 while(true)
                 {
                     @$this->getGearmanWorker()->work();
-                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT && $this->IgnoreConnectionError == false)
+                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT )
                     {
-                        exit(15);
-                    }
-                    else
-                    {
-                        sleep(10);
+                        if($this->IgnoreConnectionError == false)
+                        {
+                            sleep(10);
+                        }
+                        else
+                        {
+                            exit(15);
+                        }
                     }
                     if($this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT)
                         continue;
