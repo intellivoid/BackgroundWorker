@@ -44,7 +44,7 @@
             }
             catch(Exception $e)
             {
-                throw new ServerNotReachableException('Cannot add server ' . $host . ':' . $port . ', server unreachable [Client.addServer() error]');
+                throw new ServerNotReachableException('Cannot add server ' . $host . ':' . $port . ', server unreachable [Client.addServer() error]', null, $e);
             }
         }
 
