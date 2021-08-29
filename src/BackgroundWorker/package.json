@@ -65,6 +65,10 @@
         },
         {
             "required": true,
+            "file": "Exceptions/ServerNotReachableException.php"
+        },
+        {
+            "required": true,
             "file": "Exceptions/NoWorkersRunningException.php"
         },
         {
