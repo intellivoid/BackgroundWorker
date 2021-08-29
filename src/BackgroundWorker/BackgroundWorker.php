@@ -43,7 +43,6 @@
             $this->Supervisor = new Supervisor($this);
             $this->LogHandler = new VerboseAdventure("BackgroundWorker");
 
-            $this->LogHandler->log(EventType::INFO, "Initialized");
             ErrorHandler::registerHandlers();
         }
 

@@ -5,8 +5,10 @@
 
 
     use BackgroundWorker\Abstracts\WorkerMonitorCommands;
+    use BackgroundWorker\Exceptions\ServerNotReachableException;
     use BackgroundWorker\Exceptions\WorkerException;
     use BackgroundWorker\Utilities\Converter;
+    use Exception;
     use GearmanJob;
     use GearmanWorker;
 
@@ -49,6 +51,11 @@
         private bool $monitoringFunctionRegistered = false;
 
         /**
+         * @var bool
+         */
+        private $IgnoreConnectionError = false;
+
+        /**
          * Worker constructor.
          */
         public function __construct()
@@ -65,7 +72,14 @@
          */
         public function addServer(string $host="127.0.0.1", int $port=4730)
         {
-            $this->getGearmanWorker()->addServer($host, $port);
+            try
+            {
+                $this->getGearmanWorker()->addServer($host, $port);
+            }
+            catch(Exception)
+            {
+                exit(15);
+            }
 
             if($this->monitoringFunctionRegistered == false && $this->identifyWorker() == true)
             {
@@ -174,27 +188,60 @@
         {
             if($blocking)
             {
-                /** @noinspection PhpStatementHasEmptyBodyInspection */
-                while($this->getGearmanWorker()->work());
+                while(true)
+                {
+                    @$this->getGearmanWorker()->work();
+
+                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT && $this->IgnoreConnectionError == false)
+                    {
+                        exit(15);
+                    }
+                    else
+                    {
+                        sleep(10);
+                    }
+                }
             }
             else
             {
                 $this->getGearmanWorker()->setTimeout($timeout);
 
-                while(@$this->getGearmanWorker()->work() || $this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT)
+                while(true)
                 {
+                    @$this->getGearmanWorker()->work();
+                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT && $this->IgnoreConnectionError == false)
+                    {
+                        exit(15);
+                    }
+                    else
+                    {
+                        sleep(10);
+                    }
+                    if($this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT)
+                        continue;
                     if ($this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT)
                         break;
-
-                    if ($this->getGearmanWorker()->returnCode() != GEARMAN_SUCCESS)
-                    {
-                        if($throw_errors)
-                            throw new WorkerException("Gearman returned error code " . $this->getGearmanWorker()->returnCode());
-                        break;
-                    }
+                    if ($this->getGearmanWorker()->returnCode() != GEARMAN_SUCCESS && $throw_errors)
+                        throw new WorkerException("Gearman returned error code " . $this->getGearmanWorker()->returnCode());
                 }
 
             }
+        }
+
+        /**
+         * @return bool
+         */
+        public function isIgnoreConnectionError(): bool
+        {
+            return $this->IgnoreConnectionError;
+        }
+
+        /**
+         * @param bool $IgnoreConnectionError
+         */
+        public function setIgnoreConnectionError(bool $IgnoreConnectionError): void
+        {
+            $this->IgnoreConnectionError = $IgnoreConnectionError;
         }
 
 

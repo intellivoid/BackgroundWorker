@@ -5,6 +5,7 @@
     namespace BackgroundWorker;
 
     use BackgroundWorker\Exceptions\NoWorkersRunningException;
+    use BackgroundWorker\Exceptions\ServerNotReachableException;
     use BackgroundWorker\Exceptions\UnexpectedTermination;
     use BackgroundWorker\Exceptions\WorkersAlreadyRunningException;
     use BackgroundWorker\Objects\WorkerInstance;
@@ -65,6 +66,8 @@
         /**
          * @param string $host
          * @param int $port
+         * @throws ServerNotReachableException
+         * @throws ServerNotReachableException
          */
         public function addServer(string $host="127.0.0.1", int $port=4730)
         {
@@ -111,6 +114,7 @@
          * @param int $instances
          * @throws WorkersAlreadyRunningException
          * @throws UnexpectedTermination
+         * @throws ServerNotReachableException
          */
         public function startWorkers(string $path, string $name, int $instances=5)
         {
@@ -153,13 +157,10 @@
                 $instance->PingTimer->setMaxTimeLogs(100);
 
                 $this->startProcess($instance);
-                $this->backgroundWorker->getLogHandler()->log(
-                    EventType::INFO, "Executed worker " . $instance->InstanceID . ", process ID " . $instance->Process->getPid(),
-                    'Supervisor'
-                );
-
                 self::$workerInstances[$name][] = $instance;
             }
+
+            $this->backgroundWorker->getLogHandler()->log(EventType::INFO, "Successfully executed $instances instance(s)", 'Supervisor');
         }
 
         /**
@@ -167,6 +168,7 @@
          *
          * @param WorkerInstance $workerInstance
          * @return void
+         * @throws ServerNotReachableException
          * @throws UnexpectedTermination
          */
         private function checkStartup(WorkerInstance $workerInstance): void
@@ -175,12 +177,20 @@
             {
                 if($workerInstance->Process->getStatus() == StatusType::STATUS_TERMINATED)
                 {
-                    $exception = new UnexpectedTermination(
-                        "The worker " . $workerInstance->InstanceID . " terminated unexpectedly",
-                        $workerInstance->Process->getExitCode(),
-                        $workerInstance->Process->getOutput(),
-                        $workerInstance->Process->getErrorOutput(),
-                    );
+                    if($workerInstance->Process->getExitCode() == 15)
+                    {
+                        $exception = new ServerNotReachableException("The worker " . $workerInstance->InstanceID . " terminated due to the server not being reachable (Exit code 15)");
+                    }
+                    else
+                    {
+                        $exception = new UnexpectedTermination(
+                            "The worker " . $workerInstance->InstanceID . " terminated unexpectedly",
+                            $workerInstance->Process->getExitCode(),
+                            $workerInstance->Process->getOutput(),
+                            $workerInstance->Process->getErrorOutput(),
+                        );
+
+                    }
 
                     $this->backgroundWorker->getLogHandler()->logException($exception, $exception->getMessage(), 'Supervisor');
                     throw $exception;
@@ -227,6 +237,7 @@
          * @param string $name
          * @throws NoWorkersRunningException
          * @throws UnexpectedTermination
+         * @throws ServerNotReachableException
          */
         public function restartWorkers(string $name)
         {
@@ -255,6 +266,7 @@
          * Starts the worker process
          *
          * @param WorkerInstance $instance
+         * @throws ServerNotReachableException
          * @throws UnexpectedTermination
          * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
          */
@@ -266,14 +278,15 @@
             $instance->Process->start(function ($type, $buffer) use ($instance, $log_handler) {
                 if($instance->DisplayOutput == false)
                     return;
-
-
                 $buffer_split = implode("\n", explode("\r\n", $buffer));
                 $buffer_split = explode("\n", $buffer_split);
 
                 foreach($buffer_split as $item)
                 {
                     if(strlen($item) == 0)
+                        continue;
+
+                    if(stripos($item, 'flush(gearman_could_not_connect)'))
                         continue;
 
                     switch(strtolower($type))
@@ -301,6 +314,7 @@
          * @param string $name
          * @throws NoWorkersRunningException
          * @throws UnexpectedTermination
+         * @throws ServerNotReachableException
          */
         public function monitor(string $name): void
         {
@@ -321,22 +335,32 @@
                 // Check the running state of the worker
                 if($instance->Process->isRunning() == false)
                 {
-                    if($instance->FailCount >= 5 && $this->stabilityCheck)
+                    if($instance->Process->getExitCode() == 15)
                     {
-                        $exception = new UnexpectedTermination(
-                            "The worker " . $instance->InstanceID . " terminated unexpectedly repeatedly (StabilityCheck Failed)",
-                            $instance->Process->getExitCode(),
-                            $instance->Process->getOutput(),
-                            $instance->Process->getErrorOutput(),
-                        );
-
+                        $exception = new ServerNotReachableException("The worker " . $instance->InstanceID . " terminated due to the server not being reachable (Exit code 15) (StabilityCheck Failed)");
                         $this->backgroundWorker->getLogHandler()->logException($exception, $exception->getMessage(), 'Supervisor');
+                        $this->stopWorkers($name);
                         throw $exception;
                     }
+                    else
+                    {
+                        if($instance->FailCount >= 5 && $this->stabilityCheck)
+                        {
+                            $exception = new UnexpectedTermination(
+                                "The worker " . $instance->InstanceID . " terminated unexpectedly repeatedly (StabilityCheck Failed)",
+                                $instance->Process->getExitCode(),
+                                $instance->Process->getOutput(),
+                                $instance->Process->getErrorOutput(),
+                            );
 
-                    $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " has terminated unexpectedly, restarting.", 'Supervisor');
-                    $instance->FailCount += 1;
-                    $this->startProcess($instance);
+                            $this->backgroundWorker->getLogHandler()->logException($exception, $exception->getMessage(), 'Supervisor');
+                            throw $exception;
+                        }
+
+                        $this->backgroundWorker->getLogHandler()->log(EventType::WARNING, "Worker " . $instance->InstanceID . " has terminated unexpectedly (Exit code " . $instance->Process->getExitCode() . "), restarting.", 'Supervisor');
+                        $instance->FailCount += 1;
+                        $this->startProcess($instance);
+                    }
                 }
             }
         }
