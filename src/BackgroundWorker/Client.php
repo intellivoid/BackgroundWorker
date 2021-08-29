@@ -4,8 +4,10 @@
     namespace BackgroundWorker;
 
 
+    use BackgroundWorker\Exceptions\ServerNotReachableException;
     use BackgroundWorker\Objects\WorkerInstance;
     use BackgroundWorker\Objects\WorkerStatisticsResults;
+    use Exception;
     use GearmanClient;
 
     /**
@@ -28,15 +30,22 @@
         }
 
         /**
-         * Adds a job server to a list of servers that can be used to run a task. No socket
-         * I/O happens here; the server is simply added to the list.
+         * Adds a job server to a list of servers that can be used to run a task.
          *
          * @param string $host
          * @param int $port
+         * @throws ServerNotReachableException
          */
         public function addServer(string $host="127.0.0.1", int $port=4730)
         {
-            $this->getGearmanClient()->addServer($host, $port);
+            try
+            {
+                $this->getGearmanClient()->addServer($host, $port);
+            }
+            catch(Exception $e)
+            {
+                throw new ServerNotReachableException('Cannot add server ' . $host . ':' . $port . ', server unreachable [Client.addServer() error]');
+            }
         }
 
         /**
