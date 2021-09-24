@@ -2,7 +2,7 @@
     "package": {
         "package_name": "net.intellivoid.background_worker",
         "name": "BackgroundWorker",
-        "version": "1.0.2.3",
+        "version": "1.0.2.4",
         "author": "Zi Xing Narrakas",
         "organization": "Intellivoid",
         "description": "Extends tasks to sub-processing to power-process large tasks in the background or in parallel",
@@ -45,15 +45,15 @@
         },
         {
             "required": true,
-            "file": "Supervisor.php"
-        },
-        {
-            "required": true,
             "file": "Client.php"
         },
         {
             "required": true,
-            "file": "Exceptions/WorkersAlreadyRunningException.php"
+            "file": "Exceptions/NoWorkersRunningException.php"
+        },
+        {
+            "required": true,
+            "file": "Exceptions/ServerNotReachableException.php"
         },
         {
             "required": true,
@@ -65,11 +65,19 @@
         },
         {
             "required": true,
-            "file": "Exceptions/ServerNotReachableException.php"
+            "file": "Exceptions/WorkersAlreadyRunningException.php"
         },
         {
             "required": true,
-            "file": "Exceptions/NoWorkersRunningException.php"
+            "file": "Objects/WorkerInstance.php"
+        },
+        {
+            "required": true,
+            "file": "Objects/WorkerStatisticsResults.php"
+        },
+        {
+            "required": true,
+            "file": "Supervisor.php"
         },
         {
             "required": true,
@@ -78,18 +86,10 @@
         {
             "required": true,
             "file": "Worker.php"
-        },
-        {
-            "required": true,
-            "file": "Objects/WorkerStatisticsResults.php"
-        },
-        {
-            "required": true,
-            "file": "Objects/WorkerInstance.php"
         }
     ],
     "files": [
-        "package.json",
-        "background_worker.json"
+        "background_worker.json",
+        "package.json"
     ]
 }

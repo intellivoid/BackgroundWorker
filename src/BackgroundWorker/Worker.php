@@ -212,7 +212,7 @@
                 while(true)
                 {
                     @$this->getGearmanWorker()->work();
-                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT )
+                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT)
                     {
                         if($this->IgnoreConnectionError == false)
                         {
@@ -223,8 +223,6 @@
                             exit(15);
                         }
                     }
-                    if($this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT)
-                        continue;
                     if ($this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT)
                         break;
                     if ($this->getGearmanWorker()->returnCode() != GEARMAN_SUCCESS && $throw_errors)
