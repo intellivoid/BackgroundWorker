@@ -52,11 +52,6 @@
         /**
          * @var null|int
          */
-        private $LastRestart = null;
-
-        /**
-         * @var null|int
-         */
         private $NextRestart = null;
 
         /**
