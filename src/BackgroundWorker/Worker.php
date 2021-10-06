@@ -211,14 +211,9 @@
         }
 
         /**
-         * Works and listens for incoming jobs
-         *
-         * @param bool $blocking If false, the method will stop executing indicated by the timeout
-         * @param int $timeout The time for this method to execute (in milliseconds)
-         * @param bool $throw_errors Throws errors if any errors are caught while in non-blocking mode
-         * @throws WorkerException
+         * Checks if the socket needs to be restarted
          */
-        public function work(bool $blocking=true, int $timeout=500, bool $throw_errors=false)
+        public function checkAutoRestart(): void
         {
             // Disconnect and reconnect
             if($this->AutoRestart == true)
@@ -234,7 +229,19 @@
                     $this->NextRestart = time() + rand(3600, 7200);
                 }
             }
+        }
 
+        /**
+         * Works and listens for incoming jobs
+         *
+         * @param bool $blocking If false, the method will stop executing indicated by the timeout
+         * @param int $timeout The time for this method to execute (in milliseconds)
+         * @param bool $throw_errors Throws errors if any errors are caught while in non-blocking mode
+         * @throws WorkerException
+         */
+        public function work(bool $blocking=true, int $timeout=500, bool $throw_errors=false)
+        {
+            $this->checkAutoRestart();
             if($blocking)
             {
                 while(true)
