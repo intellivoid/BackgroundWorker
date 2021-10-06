@@ -1,15 +1,11 @@
 <?php
 
+    /** @noinspection PhpMissingFieldTypeInspection */
 
     namespace BackgroundWorker;
 
-
-    use BackgroundWorker\Abstracts\WorkerMonitorCommands;
-    use BackgroundWorker\Exceptions\ServerNotReachableException;
     use BackgroundWorker\Exceptions\WorkerException;
-    use BackgroundWorker\Utilities\Converter;
     use Exception;
-    use GearmanJob;
     use GearmanWorker;
 
     /**
@@ -39,13 +35,6 @@
         private $WorkerMon;
 
         /**
-         * The Unix Timestamp when this worker started
-         *
-         * @var int
-         */
-        private $TimestampStart;
-
-        /**
          * @var bool
          */
         private bool $monitoringFunctionRegistered = false;
@@ -54,6 +43,26 @@
          * @var bool
          */
         private $IgnoreConnectionError = false;
+
+        /**
+         * @var bool
+         */
+        private $AutoRestart = false;
+
+        /**
+         * @var null|int
+         */
+        private $LastRestart = null;
+
+        /**
+         * @var null|int
+         */
+        private $NextRestart = null;
+
+        /**
+         * @var string[]
+         */
+        private $Servers = [];
 
         /**
          * Worker constructor.
@@ -72,6 +81,8 @@
          */
         public function addServer(string $host="127.0.0.1", int $port=4730)
         {
+            $this->Servers[$host] = $port;
+
             try
             {
                 $this->getGearmanWorker()->addServer($host, $port);
@@ -81,11 +92,11 @@
                 exit(15);
             }
 
+            /**
             if($this->monitoringFunctionRegistered == false && $this->identifyWorker() == true)
             {
                 // Register the internal monitoring function
                 $this->getGearmanWorker()->addFunction(Converter::calculateWorkerInternalId($this->WorkerName, $this->WorkerInstanceID), function(GearmanJob $job){
-                    /** @noinspection PhpSwitchCanBeReplacedWithMatchExpressionInspection */
                     switch($job->workload())
                     {
                         case WorkerMonitorCommands::PING:
@@ -113,8 +124,8 @@
             {
                 trigger_error("This worker process was not executed by a supervisor, monitoring features will not be available.", E_USER_WARNING);
             }
+            **/
         }
-
 
         /**
          * @return GearmanWorker
@@ -177,6 +188,29 @@
         }
 
         /**
+         * Reconnects to the server socket
+         */
+        public function reconnect()
+        {
+            unset($this->GearmanWorker);
+            $this->GearmanWorker = null;
+
+            $this->GearmanWorker = new GearmanWorker();
+
+            foreach($this->Servers as $host => $port)
+            {
+                try
+                {
+                    $this->getGearmanWorker()->addServer($host, $port);
+                }
+                catch(Exception)
+                {
+                    exit(15);
+                }
+            }
+        }
+
+        /**
          * Works and listens for incoming jobs
          *
          * @param bool $blocking If false, the method will stop executing indicated by the timeout
@@ -186,12 +220,26 @@
          */
         public function work(bool $blocking=true, int $timeout=500, bool $throw_errors=false)
         {
+            // Disconnect and reconnect
+            if($this->AutoRestart == true)
+            {
+                if($this->NextRestart == null)
+                {
+                    $this->NextRestart = time() + rand(3600, 7200);
+                }
+
+                if(time() >= $this->NextRestart)
+                {
+                    $this->reconnect();
+                    $this->NextRestart = time() + rand(3600, 7200);
+                }
+            }
+
             if($blocking)
             {
                 while(true)
                 {
                     @$this->getGearmanWorker()->work();
-
                     if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT)
                     {
                         if($this->IgnoreConnectionError == false)
@@ -246,6 +294,22 @@
         public function setIgnoreConnectionError(bool $IgnoreConnectionError): void
         {
             $this->IgnoreConnectionError = $IgnoreConnectionError;
+        }
+
+        /**
+         * @return bool
+         */
+        public function isAutoRestart(): bool
+        {
+            return $this->AutoRestart;
+        }
+
+        /**
+         * @param bool $AutoRestart
+         */
+        public function setAutoRestart(bool $AutoRestart): void
+        {
+            $this->AutoRestart = $AutoRestart;
         }
 
 
