@@ -152,6 +152,14 @@
         }
 
         /**
+         * @return int|null
+         */
+        public function getNextRestart(): ?int
+        {
+            return $this->NextRestart;
+        }
+
+        /**
          * Self identifies the worker for monitoring purposes
          *
          * @return bool
