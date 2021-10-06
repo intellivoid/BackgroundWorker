@@ -6,8 +6,9 @@
     $BackgroundWorker = new \BackgroundWorker\BackgroundWorker();
 
     $BackgroundWorker->getWorker()->addServer();
+    $BackgroundWorker->getWorker()->setAutoRestart(true);
 
-    $BackgroundWorker->getWorker()->getGearmanWorker()->addFunction("sleep", function(GearmanJob $job){
+    $BackgroundWorker->getWorker()->addFunction("sleep", function(GearmanJob $job){
         print("Processing job" . PHP_EOL);
         $workload = json_decode($job->workload(), true);
         sleep($workload["seconds"]);

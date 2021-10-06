@@ -1,6 +1,6 @@
-<?php
+<?php /** @noinspection PhpUnusedPrivateFieldInspection */
 
-    /** @noinspection PhpMissingFieldTypeInspection */
+/** @noinspection PhpMissingFieldTypeInspection */
 
     namespace BackgroundWorker;
 
@@ -60,6 +60,16 @@
         private $Servers = [];
 
         /**
+         * @var array
+         */
+        private $RegisteredFunctions = [];
+
+        /**
+         * @var null|int
+         */
+        private $Timeout = -1;
+
+        /**
          * Worker constructor.
          */
         public function __construct()
@@ -86,40 +96,6 @@
             {
                 exit(15);
             }
-
-            /**
-            if($this->monitoringFunctionRegistered == false && $this->identifyWorker() == true)
-            {
-                // Register the internal monitoring function
-                $this->getGearmanWorker()->addFunction(Converter::calculateWorkerInternalId($this->WorkerName, $this->WorkerInstanceID), function(GearmanJob $job){
-                    switch($job->workload())
-                    {
-                        case WorkerMonitorCommands::PING:
-                            return true;
-
-                        case WorkerMonitorCommands::GET_MEMORY_USAGE:
-                            return memory_get_usage();
-
-                        case WorkerMonitorCommands::GET_REAL_MEMORY_USAGE:
-                            return memory_get_usage(true);
-
-                        case WorkerMonitorCommands::GET_UPTIME:
-                            return time() - $this->TimestampStart;
-
-                        default:
-                            return null;
-                    }
-                });
-
-                $this->monitoringFunctionRegistered = true;
-                $this->TimestampStart = time();
-                $this->getGearmanWorker()->setId($this->getGearmanWorker()->setId($this->getWorkerInstanceID()));
-            }
-            else
-            {
-                trigger_error("This worker process was not executed by a supervisor, monitoring features will not be available.", E_USER_WARNING);
-            }
-            **/
         }
 
         /**
@@ -132,11 +108,13 @@
                 $this->GearmanWorker = new GearmanWorker();
             }
 
+            $this->checkAutoRestart();
             return $this->GearmanWorker;
         }
 
         /**
          * @return string|null
+         * @noinspection PhpUnused
          */
         public function getWorkerInstanceID(): ?string
         {
@@ -145,6 +123,7 @@
 
         /**
          * @return string|null
+         * @noinspection PhpUnused
          */
         public function getWorkerName(): ?string
         {
@@ -153,6 +132,7 @@
 
         /**
          * @return int|null
+         * @noinspection PhpUnused
          */
         public function getNextRestart(): ?int
         {
@@ -163,6 +143,7 @@
          * Self identifies the worker for monitoring purposes
          *
          * @return bool
+         * @noinspection PhpUnusedPrivateMethodInspection
          */
         private function identifyWorker(): bool
         {
@@ -191,26 +172,62 @@
         }
 
         /**
+         * @param $function_name
+         * @param $function
+         * @param null $context
+         * @param int $timeout
+         * @noinspection PhpMissingParamTypeInspection
+         */
+        public function addFunction($function_name, $function, $context = null, $timeout = 0)
+        {
+            $this->GearmanWorker->addFunction($function_name, $function, $context, $timeout);
+            $this->RegisteredFunctions[$function_name] = [
+                $function, $context, $timeout
+            ];
+        }
+
+        /**
+         * Sets the interval of time to wait for socket I/O activity.
+         *
+         * @param int $timeout
+         */
+        public function setTimeout(int $timeout)
+        {
+            $this->GearmanWorker->setTimeout($timeout);
+            $this->Timeout = $timeout;
+        }
+
+        /**
          * Reconnects to the server socket
          */
         public function reconnect()
         {
             unset($this->GearmanWorker);
             $this->GearmanWorker = null;
-
             $this->GearmanWorker = new GearmanWorker();
 
+            // Re-add servers
             foreach($this->Servers as $host => $port)
             {
                 try
                 {
-                    $this->getGearmanWorker()->addServer($host, $port);
+                    $this->GearmanWorker->addServer($host, $port);
                 }
                 catch(Exception)
                 {
                     exit(15);
                 }
             }
+
+            // Re-add functions
+            foreach($this->RegisteredFunctions as $function_name => $properties)
+            {
+                $this->GearmanWorker->addFunction($function_name,
+                    $properties[0], $properties[1], $properties[2]
+                );
+            }
+
+            $this->setTimeout($this->Timeout);
         }
 
         /**
@@ -223,13 +240,13 @@
             {
                 if($this->NextRestart == null)
                 {
-                    $this->NextRestart = time() + rand(3600, 7200);
+                    $this->NextRestart = time() + rand(1800, 3600);
                 }
 
                 if(time() >= $this->NextRestart)
                 {
+                    $this->NextRestart = time() + rand(1800, 3600);
                     $this->reconnect();
-                    $this->NextRestart = time() + rand(3600, 7200);
                 }
             }
         }
@@ -244,54 +261,33 @@
          */
         public function work(bool $blocking=true, int $timeout=500, bool $throw_errors=false)
         {
-            $this->checkAutoRestart();
-            if($blocking)
+            $this->setTimeout($timeout);
+
+            while(true)
             {
-                while(true)
+                $this->checkAutoRestart();
+                @$this->getGearmanWorker()->work();
+                if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT)
                 {
-                    @$this->getGearmanWorker()->work();
-                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT)
+                    if($this->IgnoreConnectionError == false)
                     {
-                        if($this->IgnoreConnectionError == false)
-                        {
-                            sleep(10);
-                        }
-                        else
-                        {
-                            exit(15);
-                        }
+                        sleep(10);
+                    }
+                    else
+                    {
+                        exit(15);
                     }
                 }
-            }
-            else
-            {
-                $this->getGearmanWorker()->setTimeout($timeout);
-
-                while(true)
-                {
-                    @$this->getGearmanWorker()->work();
-                    if($this->getGearmanWorker()->returnCode() == GEARMAN_COULD_NOT_CONNECT)
-                    {
-                        if($this->IgnoreConnectionError == false)
-                        {
-                            sleep(10);
-                        }
-                        else
-                        {
-                            exit(15);
-                        }
-                    }
-                    if ($this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT)
-                        break;
-                    if ($this->getGearmanWorker()->returnCode() != GEARMAN_SUCCESS && $throw_errors)
-                        throw new WorkerException("Gearman returned error code " . $this->getGearmanWorker()->returnCode());
-                }
-
+                if ($this->getGearmanWorker()->returnCode() == GEARMAN_TIMEOUT && $blocking == false)
+                    break;
+                if ($this->getGearmanWorker()->returnCode() != GEARMAN_SUCCESS && $throw_errors)
+                    throw new WorkerException("Gearman returned error code " . $this->getGearmanWorker()->returnCode());
             }
         }
 
         /**
          * @return bool
+         * @noinspection PhpUnused
          */
         public function isIgnoreConnectionError(): bool
         {
@@ -300,6 +296,7 @@
 
         /**
          * @param bool $IgnoreConnectionError
+         * @noinspection PhpUnused
          */
         public function setIgnoreConnectionError(bool $IgnoreConnectionError): void
         {
@@ -308,6 +305,7 @@
 
         /**
          * @return bool
+         * @noinspection PhpUnused
          */
         public function isAutoRestart(): bool
         {
