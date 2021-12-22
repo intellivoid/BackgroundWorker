@@ -2,7 +2,7 @@
     "package": {
         "package_name": "net.intellivoid.background_worker",
         "name": "BackgroundWorker",
-        "version": "1.0.2.5",
+        "version": "1.0.2.6",
         "author": "Zi Xing Narrakas",
         "organization": "Intellivoid",
         "description": "Extends tasks to sub-processing to power-process large tasks in the background or in parallel",

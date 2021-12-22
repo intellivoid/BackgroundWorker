@@ -92,7 +92,7 @@
             {
                 $this->getGearmanWorker()->addServer($host, $port);
             }
-            catch(Exception)
+            catch(Exception $e)
             {
                 exit(15);
             }
